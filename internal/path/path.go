@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -312,6 +314,12 @@ outer:
 
 			case readPublisherStateRecord:
 				atomic.AddInt64(pa.stats.CountPublishers, -1)
+				loaded_data := pa.stats.PublishersPaths.Load().([]string)
+
+				index := sort.SearchStrings(loaded_data, pa.name)
+				data := append(loaded_data[:index], loaded_data[index+1:]...)
+
+				pa.stats.PublishersPaths.Store(data)
 			}
 			rp.Close()
 		}
@@ -390,6 +398,12 @@ func (pa *Path) removeReadPublisher(rp readpublisher.ReadPublisher) {
 
 	case readPublisherStateRecord:
 		atomic.AddInt64(pa.stats.CountPublishers, -1)
+		loaded_data := pa.stats.PublishersPaths.Load().([]string)
+
+		index := sort.SearchStrings(loaded_data, pa.name)
+		data := append(loaded_data[:index], loaded_data[index+1:]...)
+
+		pa.stats.PublishersPaths.Store(data)
 		pa.onSourceSetNotReady()
 	}
 
@@ -632,6 +646,16 @@ func (pa *Path) onReadPublisherRecord(req readpublisher.RecordReq) {
 	}
 
 	atomic.AddInt64(pa.stats.CountPublishers, 1)
+	loaded_data := pa.stats.PublishersPaths.Load()
+	var data []string
+	if reflect.TypeOf(loaded_data) == nil {
+
+		data = append(data, pa.name)
+	} else {
+		data = append(loaded_data.([]string), pa.name)
+	}
+
+	pa.stats.PublishersPaths.Store(data)
 	pa.readPublishers[req.Author] = readPublisherStateRecord
 	pa.onSourceSetReady()
 
@@ -655,6 +679,12 @@ func (pa *Path) onReadPublisherPause(req readpublisher.PauseReq) {
 
 	} else if state == readPublisherStateRecord {
 		atomic.AddInt64(pa.stats.CountPublishers, -1)
+		loaded_data := pa.stats.PublishersPaths.Load().([]string)
+
+		index := sort.SearchStrings(loaded_data, pa.name)
+		data := append(loaded_data[:index], loaded_data[index+1:]...)
+
+		pa.stats.PublishersPaths.Store(data)
 		pa.readPublishers[req.Author] = readPublisherStatePreRecord
 		pa.onSourceSetNotReady()
 	}
